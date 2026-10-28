@@ -8,6 +8,8 @@ import { PromotionList } from "@/components/site/PromotionList";
 import { LoanCalculator } from "@/components/site/LoanCalculator";
 import { CompareTool } from "@/components/site/CompareTool";
 import { LeadForm } from "@/components/site/LeadForm";
+import { PostCard } from "@/components/news/PostCard";
+import { getPosts } from "@/lib/post-data";
 import { getAbout, getAllVariants, getCategories, getHero, getImagesForVehicles, getPromotions, getSiteData, getVehicles } from "@/lib/data";
 import { telHref } from "@/lib/format";
 import { toStage } from "@/lib/vehicle-view";
@@ -15,8 +17,8 @@ import { toStage } from "@/lib/vehicle-view";
 export const revalidate = 60;
 
 export default async function HomePage() {
-  const [hero, about, site, vehicles, categories, promotions, variants] = await Promise.all([
-    getHero(), getAbout(), getSiteData(), getVehicles(), getCategories(), getPromotions(), getAllVariants(),
+  const [hero, about, site, vehicles, categories, promotions, variants, news] = await Promise.all([
+    getHero(), getAbout(), getSiteData(), getVehicles(), getCategories(), getPromotions(), getAllVariants(), getPosts({ perPage: 3 }),
   ]);
   const landing = vehicles.filter((v) => v.show_on_landing);
   const heroVehicle = vehicles.find((v) => v.slug === hero.vehicle_slug) ?? landing.find((v) => v.is_featured) ?? landing[0] ?? null;
@@ -70,6 +72,18 @@ export default async function HomePage() {
           <SectionHead id="so-sanh" title="Đặt các mẫu xe cạnh nhau" lede="So sánh tối đa 3 mẫu theo giá, kích thước, quãng đường và trang bị." action={{ href: "/so-sanh", label: "Mở trang so sánh" }} />
           <div className="mt-10">
             <CompareTool vehicles={vehicles} variants={variants} initial={vehicles.slice(0, 2).map((v) => v.slug)} />
+          </div>
+        </section>
+      )}
+
+      {/* Tin tức và kiến thức — chỉ hiện khi đã có bài đăng */}
+      {news.posts.length > 0 && (
+        <section className="border-t border-silver" aria-labelledby="tin-tuc">
+          <div className="container-x py-20 md:py-28">
+            <SectionHead id="tin-tuc" title="Tin tức và kiến thức" lede="Hiểu rõ ô tô điện trước khi quyết định: sạc, pin, chi phí sử dụng và kinh nghiệm chọn xe." action={{ href: "/tin-tuc", label: "Xem tất cả bài viết" }} />
+            <div className="mt-10 grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+              {news.posts.map((p) => <PostCard key={p.id} post={p} />)}
+            </div>
           </div>
         </section>
       )}

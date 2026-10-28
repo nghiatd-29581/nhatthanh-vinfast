@@ -46,6 +46,7 @@ export async function Footer() {
           <h2 className="text-sm font-semibold text-white/50">Thông tin</h2>
           <ul className="mt-4 space-y-2.5 text-white/80">
             <li><Link href="/uu-dai" className="hover:text-white">Ưu đãi</Link></li>
+            <li><Link href="/tin-tuc" className="hover:text-white">Tin tức và kiến thức</Link></li>
             <li><Link href="/du-toan-chi-phi" className="hover:text-white">Dự toán chi phí</Link></li>
             <li><Link href="/chinh-sach-quyen-rieng-tu" className="hover:text-white">Chính sách quyền riêng tư</Link></li>
             <li><Link href="/dieu-khoan-su-dung" className="hover:text-white">Điều khoản sử dụng</Link></li>

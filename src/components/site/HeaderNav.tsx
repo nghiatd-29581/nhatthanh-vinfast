@@ -9,6 +9,7 @@ const NAV = [
   { href: "/so-sanh", label: "So sánh" },
   { href: "/du-toan-chi-phi", label: "Dự toán chi phí" },
   { href: "/uu-dai", label: "Ưu đãi" },
+  { href: "/tin-tuc", label: "Tin tức" },
   { href: "/lien-he", label: "Liên hệ" },
 ];
 

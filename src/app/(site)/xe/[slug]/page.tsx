@@ -9,6 +9,8 @@ import { LoanCalculator } from "@/components/site/LoanCalculator";
 import { PromotionList } from "@/components/site/PromotionList";
 import { VehicleCard } from "@/components/site/VehicleCard";
 import { LeadForm } from "@/components/site/LeadForm";
+import { PostCard } from "@/components/news/PostCard";
+import { getPosts } from "@/lib/post-data";
 import { getImages, getPromotions, getSiteData, getVariants, getVehicleBySlug, getVehicles } from "@/lib/data";
 import { formatDate, formatVnd, publicPrice, telHref } from "@/lib/format";
 import { toStage } from "@/lib/vehicle-view";
@@ -41,7 +43,7 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
   const v = await getVehicleBySlug(slug);
   if (!v) notFound();
 
-  const [variants, images, promotions, all, site] = await Promise.all([getVariants(v.id), getImages(v.id), getPromotions(), getVehicles(), getSiteData()]);
+  const [variants, images, promotions, all, site, vPosts] = await Promise.all([getVariants(v.id), getImages(v.id), getPromotions(), getVehicles(), getSiteData(), getPosts({ vehicleId: v.id, perPage: 3 })]);
   const price = publicPrice(v);
   const vPromos = promotions.filter((p) => p.vehicle_id === v.id || p.vehicle_id === null);
   const related = all.filter((x) => x.id !== v.id && (x.category_id === v.category_id || !v.category_id)).slice(0, 3);
@@ -192,6 +194,18 @@ export default async function VehicleDetailPage({ params }: { params: Promise<{ 
                 <p className="mt-3 max-w-3xl text-steel">{f.a}</p>
               </details>
             ))}
+          </div>
+        </section>
+      ) : null}
+
+      {/* Bài viết về mẫu xe này (liên kết nội bộ cho SEO) */}
+      {vPosts.posts.length ? (
+        <section className="border-t border-silver" aria-labelledby="bai-viet-xe">
+          <div className="container-x py-16 md:py-20">
+            <h2 id="bai-viet-xe" className="h-section">Bài viết về {v.name}</h2>
+            <div className="mt-10 grid gap-x-6 gap-y-12 sm:grid-cols-2 lg:grid-cols-3">
+              {vPosts.posts.map((p) => <PostCard key={p.id} post={p} />)}
+            </div>
           </div>
         </section>
       ) : null}

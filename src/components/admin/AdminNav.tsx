@@ -2,7 +2,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import { BadgePercent, Car, FileText, Gauge, Images, LayoutTemplate, LogOut, Menu, Settings, Tag, Users, X } from "lucide-react";
+import { BadgePercent, Car, FileText, Gauge, Images, LayoutTemplate, LogOut, Menu, Newspaper, Settings, Tag, Users, X } from "lucide-react";
 import { signOut } from "@/app/admin/_actions/auth";
 
 const NAV = [
@@ -11,6 +11,7 @@ const NAV = [
   { href: "/admin/variants", label: "Phiên bản và hình ảnh", icon: Images },
   { href: "/admin/pricing", label: "Giá xe", icon: Tag },
   { href: "/admin/promotions", label: "Ưu đãi", icon: BadgePercent },
+  { href: "/admin/posts", label: "Tin tức", icon: Newspaper },
   { href: "/admin/leads", label: "Khách hàng tiềm năng", icon: Users },
   { href: "/admin/content", label: "Nội dung Landing Page", icon: LayoutTemplate },
   { href: "/admin/settings", label: "Liên hệ, SEO, tài chính", icon: Settings },
