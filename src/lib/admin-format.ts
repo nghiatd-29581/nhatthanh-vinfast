@@ -1,4 +1,5 @@
 import type { ColorOption, Faq, Highlight, SpecGroups } from "./types";
+import { normalizeFaqs } from "./faqs";
 
 /*
  * Chuyển đổi giữa dữ liệu JSON và dạng văn bản dễ nhập cho người không biết lập trình.
@@ -53,7 +54,7 @@ export const textToColors = (t: string): ColorOption[] =>
 export const highlightsToText = (h: Highlight[] | null | undefined) => pairsToText(h, "title", "text");
 export const textToHighlights = (t: string): Highlight[] => textToPairs(t).map(([title, text]) => ({ title, text }));
 
-export const faqsToText = (f: Faq[] | null | undefined) => pairsToText(f, "q", "a");
+export const faqsToText = (f: Faq[] | null | undefined) => pairsToText(normalizeFaqs(f), "q", "a");
 export const textToFaqs = (t: string): Faq[] => textToPairs(t).filter(([, a]) => a).map(([q, a]) => ({ q, a }));
 
 export const listToText = (l: string[] | null | undefined) => (l ?? []).join("\n");
