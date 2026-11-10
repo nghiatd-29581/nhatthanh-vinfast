@@ -1,7 +1,6 @@
 "use server";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
-import { z } from "zod";
 import { assertStaff } from "@/lib/auth";
 import { slugify } from "@/lib/format";
 import {
@@ -177,40 +176,4 @@ export async function deleteVariant(formData: FormData) {
   await supabase.from("vehicle_variants").delete().eq("id", String(formData.get("id")));
   revalidatePublic();
   redirect(`/admin/vehicles/${vehicleId}?tab=variants&ok=${encodeURIComponent("Đã xoá phiên bản")}`);
-}
-
-// ---------- Nhập dữ liệu JSON ----------
-const importItem = z.object({
-  name: z.string().min(1),
-  slug: z.string().optional(),
-  short_description: z.string().optional(),
-  description: z.string().optional(),
-  seats: z.number().int().optional(),
-  range_km: z.number().int().optional(),
-  range_standard: z.string().optional(),
-  dimensions: z.string().optional(),
-  power_text: z.string().optional(),
-  warranty_text: z.string().optional(),
-  starting_price: z.number().optional(),
-  listed_price: z.number().optional(),
-  cover_image: z.string().url().optional(),
-  data_source: z.string().optional(),
-  price_source: z.string().optional(),
-  specifications: z.record(z.string(), z.record(z.string(), z.string())).optional(),
-});
-
-/** Nhập/ cập nhật xe theo slug. Dữ liệu nhập luôn ở trạng thái NHÁP và giá CHƯA xác minh, cần duyệt thủ công. */
-export async function importVehicles(formData: FormData) {
-  const { supabase } = await assertStaff();
-  let items: z.infer<typeof importItem>[];
-  try {
-    const raw = JSON.parse(String(formData.get("json") ?? "[]"));
-    items = z.array(importItem).max(200).parse(Array.isArray(raw) ? raw : [raw]);
-  } catch {
-    redirect("/admin/vehicles/import?error=" + encodeURIComponent("JSON không hợp lệ hoặc thiếu trường bắt buộc (name)"));
-  }
-  const rows = items.map((i) => ({ ...i, slug: slugify(i.slug ?? i.name), is_published: false, price_verified: false }));
-  const { error } = await supabase.from("vehicles").upsert(rows, { onConflict: "slug" });
-  if (error) redirect("/admin/vehicles/import?error=" + encodeURIComponent("Không nhập được dữ liệu"));
-  redirect(`/admin/vehicles?ok=${encodeURIComponent(`Đã nhập ${rows.length} xe ở trạng thái nháp, giá chờ duyệt`)}`);
 }
