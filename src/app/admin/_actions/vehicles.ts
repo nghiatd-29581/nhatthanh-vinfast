@@ -39,7 +39,6 @@ export async function saveVehicle(formData: FormData) {
     specifications: textToSpecs(String(formData.get("specifications") ?? "")),
     highlights: textToHighlights(String(formData.get("highlights") ?? "")),
     faqs: textToFaqs(String(formData.get("faqs") ?? "")),
-    colors: textToColors(String(formData.get("colors") ?? "")),
     cover_image: str(formData.get("cover_image")),
     sales_status: (SALES as readonly string[]).includes(sales) ? sales : "contact",
     badges: formData.getAll("badges").map(String).filter((b) => ["featured", "new", "promo"].includes(b)),

@@ -1,4 +1,5 @@
 import type { Vehicle } from "./types";
+import { normalizeColors } from "./colors";
 import { orDash, publicPrice } from "./format";
 import type { StageVehicle } from "@/components/site/VehicleStage";
 
@@ -17,7 +18,7 @@ export function toStage(v: Vehicle): StageVehicle {
   return {
     name: v.name,
     cover_image: v.cover_image,
-    colors: v.colors ?? [],
+    colors: normalizeColors(v.colors),
     highlights: v.highlights ?? [],
     specifications: v.specifications ?? {},
     quickSpecs: quickSpecs(v),

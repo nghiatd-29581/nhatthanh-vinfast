@@ -2,6 +2,7 @@
 import { useMemo, useState } from "react";
 import { SafeImage } from "@/components/ui/SafeImage";
 import type { ColorOption, Highlight, SpecGroups, VehicleImage } from "@/lib/types";
+import { swatchStyle } from "@/lib/colors";
 
 type Tab = "exterior" | "interior" | "color" | "tech" | "specs";
 const TABS: { key: Tab; label: string }[] = [
@@ -24,18 +25,25 @@ export interface StageVehicle {
 /** Khu trưng bày xe: tab ngoại/nội thất, chọn màu đổi ảnh tương ứng, công nghệ, thông số */
 export function VehicleStage({ vehicle, images, dark = true }: { vehicle: StageVehicle; images: VehicleImage[]; dark?: boolean }) {
   const [tab, setTab] = useState<Tab>("exterior");
-  const [color, setColor] = useState<string | null>(vehicle.colors[0]?.name ?? null);
+  const extColors = useMemo(() => vehicle.colors.filter((c) => c.type !== "interior"), [vehicle.colors]);
+  const intColors = useMemo(() => vehicle.colors.filter((c) => c.type === "interior"), [vehicle.colors]);
+  const [color, setColor] = useState<string | null>(extColors[0]?.name ?? null);
+  const [intColor, setIntColor] = useState<string | null>(intColors[0]?.name ?? null);
   const [index, setIndex] = useState(0);
 
   const pool = useMemo(() => {
-    if (tab === "interior") return images.filter((i) => i.image_type === "interior");
+    if (tab === "interior") {
+      const all = images.filter((i) => i.image_type === "interior");
+      // Nếu ảnh nội thất đã được gắn màu → lọc theo màu nội thất đang chọn; chưa gắn thì hiện tất cả
+      const tagged = all.some((i) => i.color_name && intColors.some((c) => c.name === i.color_name));
+      return tagged && intColor ? all.filter((i) => i.color_name === intColor || !i.color_name) : all;
+    }
     if (tab === "color") {
-      const byColor = images.filter((i) => color && i.color_name === color);
-      return byColor;
+      return images.filter((i) => color && i.color_name === color && i.image_type !== "interior");
     }
     const ext = images.filter((i) => i.image_type === "exterior" || i.image_type === "detail");
     return ext.length ? ext : vehicle.cover_image ? [{ image_url: vehicle.cover_image, alt_text: vehicle.name } as VehicleImage] : [];
-  }, [tab, images, color, vehicle.cover_image, vehicle.name]);
+  }, [tab, images, color, intColor, intColors, vehicle.cover_image, vehicle.name]);
 
   const current = pool[Math.min(index, Math.max(0, pool.length - 1))];
   const muted = dark ? "text-white/60" : "text-steel";
@@ -84,21 +92,19 @@ export function VehicleStage({ vehicle, images, dark = true }: { vehicle: StageV
 
         {tab === "color" && (
           <div className="mt-5">
-            {vehicle.colors.length ? (
-              <div className="flex flex-wrap items-center gap-3">
-                {vehicle.colors.map((c) => (
-                  <button key={c.name} type="button" onClick={() => { setColor(c.name); setIndex(0); }} aria-pressed={color === c.name} title={c.name}
-                    className={`flex items-center gap-2 rounded-full border px-2 py-1.5 pr-3 text-sm font-medium ${color === c.name ? (dark ? "border-white" : "border-ink") : dark ? "border-white/15" : "border-silver"}`}>
-                    <span className="size-6 rounded-full border border-black/10" style={{ background: c.hex }} aria-hidden />
-                    {c.name}
-                  </button>
-                ))}
-              </div>
+            {extColors.length ? (
+              <Swatches colors={extColors} value={color} onChange={(n) => { setColor(n); setIndex(0); }} dark={dark} label="Màu ngoại thất" />
             ) : (
               <p className={muted}>Bảng màu đang được cập nhật.</p>
             )}
           </div>
         )}
+
+        {tab === "interior" && intColors.length ? (
+          <div className="mt-5">
+            <Swatches colors={intColors} value={intColor} onChange={(n) => { setIntColor(n); setIndex(0); }} dark={dark} label="Màu nội thất" />
+          </div>
+        ) : null}
 
         {tab === "tech" && (
           vehicle.highlights.length ? (
@@ -123,6 +129,25 @@ export function VehicleStage({ vehicle, images, dark = true }: { vehicle: StageV
             ))}
           </dl>
         )}
+      </div>
+    </div>
+  );
+}
+
+function Swatches({ colors, value, onChange, dark, label }: { colors: ColorOption[]; value: string | null; onChange: (name: string) => void; dark: boolean; label: string }) {
+  return (
+    <div role="radiogroup" aria-label={label}>
+      <p className={`mb-3 text-sm ${dark ? "text-white/60" : "text-steel"}`}>
+        {label}: <span className={dark ? "font-semibold text-white" : "font-semibold text-ink"}>{value ?? "—"}</span>
+      </p>
+      <div className="flex flex-wrap items-center gap-3">
+        {colors.map((c) => (
+          <button key={c.name} type="button" role="radio" aria-checked={value === c.name} onClick={() => onChange(c.name)} title={c.name}
+            className={`rounded-full p-1 ring-2 transition ${value === c.name ? (dark ? "ring-white" : "ring-ink") : "ring-transparent hover:ring-white/30"}`}>
+            <span className="block size-9 rounded-full border border-black/10 shadow-inner" style={swatchStyle(c)} />
+            <span className="sr-only">{c.name}</span>
+          </button>
+        ))}
       </div>
     </div>
   );

@@ -4,6 +4,8 @@ import { createSessionClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth";
 import { Card, Field, Flash, PageHeader, Pill } from "@/components/admin/ui";
 import { ImageManager } from "@/components/admin/ImageManager";
+import { ColorManager } from "@/components/admin/ColorManager";
+import { normalizeColors } from "@/lib/colors";
 import { deleteVariant, saveVariant, saveVehicle, saveVehiclePrice } from "@/app/admin/_actions/vehicles";
 import { colorsToText, faqsToText, highlightsToText, listToText, specsToText } from "@/lib/admin-format";
 import { formatDate, isPriceStale } from "@/lib/format";
@@ -13,6 +15,7 @@ import type { Category, Variant, Vehicle, VehicleImage } from "@/lib/types";
 const TABS = [
   { key: "info", label: "Thông tin" },
   { key: "price", label: "Giá" },
+  { key: "colors", label: "Màu sắc" },
   { key: "variants", label: "Phiên bản" },
   { key: "images", label: "Hình ảnh" },
 ];
@@ -53,6 +56,7 @@ export default async function VehicleEdit({ params, searchParams }: { params: Pr
 
       {tab === "info" && <InfoForm v={v} categories={(categories ?? []) as Category[]} />}
       {tab === "price" && v && <PriceForm v={v} />}
+      {tab === "colors" && v && <ColorsTab v={v} />}
       {tab === "variants" && v && <VariantsTab v={v} />}
       {tab === "images" && v && <ImagesTab v={v} />}
     </>
@@ -91,9 +95,9 @@ function InfoForm({ v, categories }: { v: Vehicle | null; categories: Category[]
           <Field label="Bảng thông số chi tiết" hint="Mỗi dòng: Nhóm > Tên thông số: Giá trị" className="mt-4">
             <textarea name="specifications" rows={8} defaultValue={specsToText(v?.specifications)} className="field font-mono text-xs" placeholder={"Kích thước > Chiều dài cơ sở: ...\nĐộng cơ > Công suất tối đa: ..."} />
           </Field>
-          <Field label="Màu sắc" hint="Mỗi dòng: Tên màu | #mã màu" className="mt-4">
-            <textarea name="colors" rows={4} defaultValue={colorsToText(v?.colors)} className="field font-mono text-xs" />
-          </Field>
+          <p className="mt-4 rounded-xl bg-mist px-4 py-3 text-sm text-steel">
+            Màu ngoại thất và nội thất được quản lý ở tab <b>Màu sắc</b>{v ? <> — <Link href={`/admin/vehicles/${v.id}?tab=colors`} className="font-semibold text-brand underline">mở tab Màu sắc</Link></> : " (sau khi lưu xe)"}.
+          </p>
           <Field label="Công nghệ và điểm nổi bật" hint="Mỗi dòng: Tiêu đề | Nội dung" className="mt-4">
             <textarea name="highlights" rows={5} defaultValue={highlightsToText(v?.highlights)} className="field font-mono text-xs" />
           </Field>
@@ -217,5 +221,11 @@ async function ImagesTab({ v }: { v: Vehicle }) {
     sb.from("vehicle_images").select("*").eq("vehicle_id", v.id).order("sort_order"),
     sb.from("vehicle_variants").select("id, name").eq("vehicle_id", v.id).order("sort_order"),
   ]);
-  return <ImageManager vehicleId={v.id} images={(images ?? []) as VehicleImage[]} variants={variants ?? []} colors={(v.colors ?? []).map((c) => c.name)} />;
+  return <ImageManager vehicleId={v.id} images={(images ?? []) as VehicleImage[]} variants={variants ?? []} colors={normalizeColors(v.colors)} />;
+}
+
+async function ColorsTab({ v }: { v: Vehicle }) {
+  const sb = await createSessionClient();
+  const { data: images } = await sb.from("vehicle_images").select("color_name, image_type").eq("vehicle_id", v.id);
+  return <ColorManager key={v.updated_at} vehicleId={v.id} colors={normalizeColors(v.colors)} images={(images ?? []) as Pick<VehicleImage, "color_name" | "image_type">[]} />;
 }

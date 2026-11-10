@@ -1,16 +1,22 @@
 "use client";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { GripVertical, Loader2, Star, Trash2, Upload } from "lucide-react";
 import { createBrowserSupabase } from "@/lib/supabase/client";
 import { addImages, checkImageUrls, deleteImage, reorderImages, setCoverImage, updateImage } from "@/app/admin/_actions/images";
 import { IMAGE_TYPE_LABELS } from "@/lib/constants";
-import type { VehicleImage } from "@/lib/types";
+import { swatchStyle } from "@/lib/colors";
+import type { ColorOption, VehicleImage } from "@/lib/types";
+
+/** Màu phù hợp với loại ảnh: ảnh nội thất ↔ màu nội thất, còn lại ↔ màu ngoại thất */
+const colorsFor = (colors: ColorOption[], imageType: string) =>
+  colors.filter((c) => (imageType === "interior" ? c.type === "interior" : c.type !== "interior"));
 
 const MAX_BYTES = 8 * 1024 * 1024;
 const ACCEPT = ["image/jpeg", "image/png", "image/webp", "image/avif"];
 
-export function ImageManager({ vehicleId, images, variants, colors }: { vehicleId: string; images: VehicleImage[]; variants: { id: string; name: string }[]; colors: string[] }) {
+export function ImageManager({ vehicleId, images, variants, colors }: { vehicleId: string; images: VehicleImage[]; variants: { id: string; name: string }[]; colors: ColorOption[] }) {
   const router = useRouter();
   const [list, setList] = useState(images);
   const [msg, setMsg] = useState<{ ok?: string; error?: string }>({});
@@ -19,6 +25,8 @@ export function ImageManager({ vehicleId, images, variants, colors }: { vehicleI
   const [broken, setBroken] = useState<Record<string, boolean>>({});
   const [rights, setRights] = useState("");
   const [type, setType] = useState("exterior");
+  const [addColor, setAddColor] = useState("");
+  const addColors = colorsFor(colors, type);
   const dragId = useRef<string | null>(null);
 
   // đồng bộ khi server trả dữ liệu mới (sau router.refresh)
@@ -46,7 +54,7 @@ export function ImageManager({ vehicleId, images, variants, colors }: { vehicleI
       uploaded.push({ image_url: data.publicUrl, storage_path: path, alt_text: f.name.replace(/\.[^.]+$/, "").replace(/[-_]+/g, " ") });
     }
     if (uploaded.length) {
-      const res = await addImages(vehicleId, uploaded.map((u) => ({ ...u, image_type: type, usage_rights_note: rights || "Ảnh do quản trị viên tải lên" })));
+      const res = await addImages(vehicleId, uploaded.map((u) => ({ ...u, image_type: type, color_name: addColor || null, usage_rights_note: rights || "Ảnh do quản trị viên tải lên" })));
       refresh(res.ok ? `Đã tải lên ${uploaded.length} ảnh` : undefined, res.error);
     } else {
       setMsg({ error: "Không tải lên được ảnh. Kiểm tra quyền Storage và thử lại." });
@@ -59,7 +67,7 @@ export function ImageManager({ vehicleId, images, variants, colors }: { vehicleI
     const urls = String(fd.get("urls") ?? "").split("\n").map((s) => s.trim()).filter(Boolean);
     if (!urls.length) return;
     startTransition(async () => {
-      const res = await addImages(vehicleId, urls.map((u) => ({ image_url: u, image_type: type, alt_text: String(fd.get("alt") ?? ""), usage_rights_note: rights || null, source_url: u })));
+      const res = await addImages(vehicleId, urls.map((u) => ({ image_url: u, image_type: type, color_name: addColor || null, alt_text: String(fd.get("alt") ?? ""), usage_rights_note: rights || null, source_url: u })));
       if (res.ok) form.reset();
       refresh(res.ok ? `Đã thêm ${urls.length} ảnh từ URL` : undefined, res.error);
     });
@@ -85,11 +93,22 @@ export function ImageManager({ vehicleId, images, variants, colors }: { vehicleI
       {msg.ok || msg.error ? <p role="status" className={`rounded-xl px-4 py-3 text-sm font-medium ${msg.error ? "bg-signal/10 text-signal" : "bg-emerald-600/10 text-emerald-800"}`}>{msg.error ?? msg.ok}</p> : null}
 
       <section className="grid gap-5 rounded-2xl border border-silver bg-white p-5 lg:grid-cols-2">
-        <div className="grid gap-3 sm:grid-cols-2 lg:col-span-2">
+        <div className="grid gap-3 sm:grid-cols-3 lg:col-span-2">
           <label className="block"><span className="label">Loại ảnh khi thêm</span>
-            <select value={type} onChange={(e) => setType(e.target.value)} className="field">
+            <select value={type} onChange={(e) => { setType(e.target.value); setAddColor(""); }} className="field">
               {Object.entries(IMAGE_TYPE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
             </select>
+          </label>
+          <label className="block"><span className="label">{type === "interior" ? "Màu nội thất khi thêm" : "Màu xe khi thêm"}</span>
+            <select value={addColor} onChange={(e) => setAddColor(e.target.value)} className="field">
+              <option value="">Không gắn màu</option>
+              {addColors.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+            </select>
+            {!addColors.length ? (
+              <span className="mt-1 block text-xs text-steel">
+                Xe chưa có màu {type === "interior" ? "nội thất" : "ngoại thất"}. <Link href={`/admin/vehicles/${vehicleId}?tab=colors`} className="font-semibold text-brand underline">Thêm ở tab Màu sắc</Link>
+              </span>
+            ) : null}
           </label>
           <label className="block"><span className="label">Ghi chú quyền sử dụng</span>
             <input value={rights} onChange={(e) => setRights(e.target.value)} className="field" placeholder="VD: Ảnh tự chụp / được VinFast cho phép dùng" />
@@ -150,8 +169,13 @@ export function ImageManager({ vehicleId, images, variants, colors }: { vehicleI
   );
 }
 
-function ImageFields({ img, variants, colors, onSaved }: { img: VehicleImage; variants: { id: string; name: string }[]; colors: string[]; onSaved: (ok: boolean) => void }) {
+function ImageFields({ img, variants, colors, onSaved }: { img: VehicleImage; variants: { id: string; name: string }[]; colors: ColorOption[]; onSaved: (ok: boolean) => void }) {
   const [pending, start] = useTransition();
+  const [imgType, setImgType] = useState<string>(img.image_type);
+  const [colorName, setColorName] = useState(img.color_name ?? "");
+  const options = colorsFor(colors, imgType);
+  const legacy = colorName && !options.some((c) => c.name === colorName);
+  const current = options.find((c) => c.name === colorName);
   return (
     <form className="grid gap-2 text-sm sm:grid-cols-2"
       onSubmit={(e) => {
@@ -170,13 +194,17 @@ function ImageFields({ img, variants, colors, onSaved }: { img: VehicleImage; va
         });
       }}>
       <input name="alt_text" defaultValue={img.alt_text} className="field !min-h-10 !py-2 sm:col-span-2" placeholder="Mô tả ảnh (alt text)" aria-label="Mô tả ảnh" />
-      <select name="image_type" defaultValue={img.image_type} className="field !min-h-10 !py-2" aria-label="Góc nhìn">
+      <select name="image_type" value={imgType} onChange={(e) => setImgType(e.target.value)} className="field !min-h-10 !py-2" aria-label="Góc nhìn">
         {Object.entries(IMAGE_TYPE_LABELS).map(([k, l]) => <option key={k} value={k}>{l}</option>)}
       </select>
-      <select name="color_name" defaultValue={img.color_name ?? ""} className="field !min-h-10 !py-2" aria-label="Màu xe">
-        <option value="">Không gắn màu</option>
-        {colors.map((c) => <option key={c} value={c}>{c}</option>)}
-      </select>
+      <div className="flex items-center gap-2">
+        <span className="size-6 shrink-0 rounded-full border border-black/10" style={current ? swatchStyle(current) : { background: "transparent" }} aria-hidden />
+        <select name="color_name" value={colorName} onChange={(e) => setColorName(e.target.value)} className="field !min-h-10 !py-2" aria-label={imgType === "interior" ? "Màu nội thất" : "Màu xe"}>
+          <option value="">{imgType === "interior" ? "Không gắn màu nội thất" : "Không gắn màu xe"}</option>
+          {options.map((c) => <option key={c.name} value={c.name}>{c.name}</option>)}
+          {legacy ? <option value={colorName}>{colorName} (không có trong bảng màu)</option> : null}
+        </select>
+      </div>
       <select name="variant_id" defaultValue={img.variant_id ?? ""} className="field !min-h-10 !py-2" aria-label="Phiên bản">
         <option value="">Mọi phiên bản</option>
         {variants.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}

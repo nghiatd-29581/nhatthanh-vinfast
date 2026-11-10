@@ -5,7 +5,9 @@ export type ImageType = "exterior" | "interior" | "detail" | "color";
 export type PromoType = "cash" | "finance" | "installment" | "limited_time" | "other";
 
 export type SpecGroups = Record<string, Record<string, string>>;
-export interface ColorOption { name: string; hex: string }
+export type ColorType = "exterior" | "interior";
+/** Màu xe. type mặc định "exterior". hex2: màu thứ hai cho xe phối 2 màu (mui/nóc) hoặc nội thất 2 tông */
+export interface ColorOption { name: string; hex: string; hex2?: string | null; type?: ColorType }
 export interface Highlight { title: string; text: string }
 export interface Faq { q: string; a: string }
 

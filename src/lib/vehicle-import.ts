@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { slugify } from "./format";
+import { normalizeColors } from "./colors";
 import { normalizeFaqs } from "./faqs";
 export { normalizeFaqs };
 
@@ -46,9 +47,9 @@ const specs = z
     return out;
   });
 const colors = z
-  .array(z.object({ name: z.string(), hex: z.string().nullish() }))
+  .array(z.object({ name: z.string(), hex: z.string().nullish(), hex2: z.string().nullish(), type: z.string().nullish() }))
   .nullish()
-  .transform((a) => (a ?? []).map((c) => ({ name: c.name.trim(), hex: /^#[0-9a-f]{3,8}$/i.test(c.hex ?? "") ? c.hex! : "#cccccc" })));
+  .transform((a) => normalizeColors(a ?? []));
 const highlights = z
   .array(z.object({ title: z.string(), text: z.string().nullish() }))
   .nullish()
