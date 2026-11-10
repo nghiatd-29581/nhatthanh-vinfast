@@ -4,6 +4,7 @@ import { createPublicClient } from "@/lib/supabase/server";
 import { isSupabaseConfigured } from "@/lib/env";
 import { SAMPLE_VEHICLES } from "@/lib/sample-data";
 import { DEFAULT_ABOUT, DEFAULT_CONTACT, DEFAULT_FINANCE, DEFAULT_HERO, DEFAULT_NOTICES, DEFAULT_SEO } from "@/lib/constants";
+import { normalizeFaqs } from "@/lib/faqs";
 import type { AboutContent, Category, HeroContent, Promotion, SiteData, Variant, Vehicle, VehicleImage } from "@/lib/types";
 
 /*
@@ -55,7 +56,7 @@ export const getVehicles = cache(async (): Promise<Vehicle[]> => {
       .is("deleted_at", null)
       .order("sort_order", { ascending: true });
     if (error) throw error;
-    return (data ?? []) as Vehicle[];
+    return ((data ?? []) as Vehicle[]).map((v) => ({ ...v, faqs: normalizeFaqs(v.faqs) }));
   } catch {
     return [];
   }
@@ -71,7 +72,7 @@ export const getVehicleBySlug = cache(async (slug: string): Promise<Vehicle | nu
       .eq("is_published", true)
       .is("deleted_at", null)
       .maybeSingle();
-    return (data as Vehicle) ?? null;
+    return data ? { ...(data as Vehicle), faqs: normalizeFaqs((data as Vehicle).faqs) } : null;
   } catch {
     return null;
   }
