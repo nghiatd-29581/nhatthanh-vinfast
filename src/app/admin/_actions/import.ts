@@ -3,7 +3,7 @@ import { revalidatePath } from "next/cache";
 import { assertStaff } from "@/lib/auth";
 import { importVehicle, parseLooseJson, VEHICLE_FIELDS, vehicleSlug, type ImportVehicle } from "@/lib/vehicle-import";
 
-export interface ImportRow { name: string; slug: string; action: "create" | "update"; variants: number; images: number }
+export interface ImportRow { name: string; slug: string; action: "create" | "update" | "restore"; variants: number; images: number }
 export interface ImportReport {
   status: "idle" | "checked" | "done" | "error";
   errors: string[];
@@ -53,11 +53,13 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
   // 3. Đối chiếu với dữ liệu hiện có
   const [{ data: cats }, { data: existing }] = await Promise.all([
     supabase.from("vehicle_categories").select("id, slug"),
-    supabase.from("vehicles").select("id, slug").in("slug", items.map((i) => i.slug)),
+    supabase.from("vehicles").select("id, slug, deleted_at").in("slug", items.map((i) => i.slug)),
   ]);
   const catIds = new Set((cats ?? []).map((c) => c.id));
   const catBySlug = new Map((cats ?? []).map((c) => [c.slug, c.id]));
   const existingBySlug = new Map((existing ?? []).map((e) => [e.slug, e.id]));
+  // Xe có trong file nhưng đang ở thùng rác sẽ được khôi phục khi nhập
+  const deletedSlugs = new Set((existing ?? []).filter((e) => e.deleted_at).map((e) => e.slug));
 
   for (const { raw, v, slug } of items) {
     if (v.category_id && !catIds.has(v.category_id)) report.warnings.push(`${v.name}: category_id không tồn tại → để “Chưa phân loại”.`);
@@ -67,7 +69,7 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
     report.rows.push({
       name: v.name,
       slug,
-      action: existingBySlug.has(slug) ? "update" : "create",
+      action: deletedSlugs.has(slug) ? "restore" : existingBySlug.has(slug) ? "update" : "create",
       variants: Array.isArray(raw.variants) ? raw.variants.length : 0,
       images: Array.isArray(raw.images) ? raw.images.length : 0,
     });
@@ -75,7 +77,12 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
 
   if (mode === "check") {
     const c = report.rows.filter((r) => r.action === "create").length;
-    return { ...report, status: "checked", summary: `File hợp lệ: ${c} xe mới, ${report.rows.length - c} xe cập nhật. Bấm “Nhập dữ liệu” để ghi vào hệ thống.` };
+    const rs = report.rows.filter((r) => r.action === "restore").length;
+    return {
+      ...report,
+      status: "checked",
+      summary: `CHỈ KIỂM TRA, chưa ghi dữ liệu. File hợp lệ: ${c} xe mới, ${report.rows.length - c - rs} xe cập nhật${rs ? `, ${rs} xe đang ở thùng rác sẽ được khôi phục` : ""}. Bấm “Nhập dữ liệu” để ghi.`,
+    };
   }
 
   // 4. Ghi dữ liệu — chỉ cập nhật những trường CÓ trong file, không xoá trường khác
@@ -92,6 +99,7 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
     if ("sort_order" in payload && payload.sort_order == null) delete payload.sort_order;
 
     const id0 = existingBySlug.get(slug);
+    if (deletedSlugs.has(slug)) payload.deleted_at = null;
     if (keepStatus) {
       if ("is_published" in raw && v.is_published != null) payload.is_published = v.is_published;
       const verified = !!v.price_verified && !!v.price_source;
@@ -101,6 +109,12 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
       // Mặc định an toàn: xe mới là nháp; giá từ file chờ duyệt lại
       if (!id0) payload.is_published = false;
       if (["listed_price", "starting_price", "display_price", "rolling_price_estimate"].some((f) => f in raw)) payload.price_verified = false;
+    }
+
+    // Xe đã có: giá trị null trong file nghĩa là "giữ nguyên" (file thường để null cho ô chưa biết).
+    // Muốn xoá trắng một ô chữ thì ghi "" trong file.
+    if (id0) {
+      for (const k of VEHICLE_FIELDS) if (k in raw && raw[k] === null) delete payload[k];
     }
 
     const res = id0
@@ -129,8 +143,11 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
           sort_order: x.sort_order ?? i + 1,
           is_active: x.is_active ?? true,
         };
+        const xr = (Array.isArray(raw.variants) ? (raw.variants as Record<string, unknown>[])[i] : {}) ?? {};
+        const upd: Record<string, unknown> = { ...row };
+        for (const k of ["price", "specifications", "features", "colors", "sales_status", "sort_order", "is_active"]) if (!(k in xr) || xr[k] === null) delete upd[k];
         const r = match
-          ? await supabase.from("vehicle_variants").update(row).eq("id", match.id)
+          ? await supabase.from("vehicle_variants").update(upd).eq("id", match.id)
           : await supabase.from("vehicle_variants").insert(row);
         if (r.error) report.errors.push(`${v.name} / phiên bản ${x.name}: ${r.error.message}`);
       }
@@ -156,6 +173,16 @@ export async function importVehiclesAction(_prev: ImportReport, formData: FormDa
         };
         const r = match ? await supabase.from("vehicle_images").update(row).eq("id", match.id) : await supabase.from("vehicle_images").insert(row);
         if (r.error) report.errors.push(`${v.name} / ảnh ${i + 1}: ${r.error.message}`);
+      }
+    }
+    // Ảnh đại diện: nếu xe chưa có cover_image mà thư viện ảnh có ảnh đánh dấu đại diện → dùng lại ảnh đó
+    const { data: after } = await supabase.from("vehicles").select("cover_image").eq("id", vehicleId).single();
+    if (after && !after.cover_image) {
+      const { data: cov } = await supabase.from("vehicle_images").select("image_url").eq("vehicle_id", vehicleId).eq("is_active", true)
+        .order("is_cover", { ascending: false }).order("sort_order").limit(1);
+      if (cov?.[0]) {
+        await supabase.from("vehicles").update({ cover_image: cov[0].image_url }).eq("id", vehicleId);
+        report.warnings.push(`${v.name}: chưa có cover_image → đã lấy ảnh từ thư viện ảnh của xe làm ảnh đại diện.`);
       }
     }
     ok++;

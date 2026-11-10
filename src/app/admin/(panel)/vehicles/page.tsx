@@ -3,7 +3,7 @@ import { ArrowDown, ArrowUp } from "lucide-react";
 import { createSessionClient } from "@/lib/supabase/server";
 import { requireStaff } from "@/lib/auth";
 import { Flash, PageHeader, Pagination, Pill } from "@/components/admin/ui";
-import { duplicateVehicle, vehicleQuickAction } from "@/app/admin/_actions/vehicles";
+import { duplicateVehicle, purgeVehicles, vehicleQuickAction } from "@/app/admin/_actions/vehicles";
 import { formatDate, isPriceStale, publicPrice } from "@/lib/format";
 import { SALES_STATUS_LABELS } from "@/lib/constants";
 import type { Vehicle } from "@/lib/types";
@@ -11,7 +11,7 @@ import type { Vehicle } from "@/lib/types";
 const PER = 20;
 
 export default async function VehiclesAdmin({ searchParams }: { searchParams: Promise<Record<string, string | undefined>> }) {
-  await requireStaff();
+  const staff = await requireStaff();
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
   const sb = await createSessionClient();
@@ -49,6 +49,16 @@ export default async function VehiclesAdmin({ searchParams }: { searchParams: Pr
           <Link href="/admin/vehicles/new" className="btn btn-primary btn-sm">Thêm xe</Link>
         </>} />
       <Flash ok={sp.ok} error={sp.error} />
+      {sp.view === "trash" && staff.role === "admin" && vehicles.length > 0 ? (
+        <form action={purgeVehicles} className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-signal/30 bg-signal/5 p-4 text-sm">
+          <input type="hidden" name="all" value="1" />
+          <span>Xoá vĩnh viễn sẽ xoá luôn phiên bản, ảnh (kể cả file ảnh đã tải lên) của các xe trong thùng rác. Không thể hoàn tác.</span>
+          <span className="flex items-center gap-3">
+            <label className="flex items-center gap-2"><input type="checkbox" required className="size-4" /> Tôi hiểu</label>
+            <button className="btn btn-sm bg-signal text-white">Xoá vĩnh viễn tất cả xe trong thùng rác</button>
+          </span>
+        </form>
+      ) : null}
 
       <form className="mb-4 grid gap-2 rounded-2xl border border-silver bg-white p-3 sm:grid-cols-[1fr_180px_180px_auto]">
         <input name="q" defaultValue={sp.q} placeholder="Tìm theo tên xe" className="field" aria-label="Tìm kiếm" />
@@ -103,7 +113,12 @@ export default async function VehiclesAdmin({ searchParams }: { searchParams: Pr
                   <td className="p-3">
                     <div className="flex flex-wrap gap-x-3 gap-y-1">
                       <Link href={`/admin/vehicles/${v.id}`} className="text-xs font-semibold text-brand hover:underline">Sửa</Link>
-                      {v.deleted_at ? act(v.id, "restore", "Khôi phục") : <>
+                      {v.deleted_at ? <>
+                        {act(v.id, "restore", "Khôi phục")}
+                        {staff.role === "admin" ? (
+                          <form action={purgeVehicles}><input type="hidden" name="id" value={v.id} /><button className="text-xs font-semibold text-signal hover:underline">Xoá vĩnh viễn</button></form>
+                        ) : null}
+                      </> : <>
                         {v.is_published ? act(v.id, "unpublish", "Ẩn") : act(v.id, "publish", "Xuất bản")}
                         {v.is_featured ? act(v.id, "unfeature", "Bỏ nổi bật") : act(v.id, "feature", "Nổi bật")}
                         {v.show_on_landing ? act(v.id, "landing_off", "Ẩn khỏi trang chủ") : act(v.id, "landing_on", "Hiện trang chủ")}
