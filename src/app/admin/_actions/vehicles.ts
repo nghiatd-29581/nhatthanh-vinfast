@@ -39,7 +39,6 @@ export async function saveVehicle(formData: FormData) {
     specifications: textToSpecs(String(formData.get("specifications") ?? "")),
     highlights: textToHighlights(String(formData.get("highlights") ?? "")),
     faqs: textToFaqs(String(formData.get("faqs") ?? "")),
-    colors: textToColors(String(formData.get("colors") ?? "")),
     cover_image: str(formData.get("cover_image")),
     sales_status: (SALES as readonly string[]).includes(sales) ? sales : "contact",
     badges: formData.getAll("badges").map(String).filter((b) => ["featured", "new", "promo"].includes(b)),
@@ -176,4 +175,34 @@ export async function deleteVariant(formData: FormData) {
   await supabase.from("vehicle_variants").delete().eq("id", String(formData.get("id")));
   revalidatePublic();
   redirect(`/admin/vehicles/${vehicleId}?tab=variants&ok=${encodeURIComponent("Đã xoá phiên bản")}`);
+}
+
+// ---------- Xoá vĩnh viễn (chỉ xe đang ở thùng rác, chỉ role admin) ----------
+async function purge(supabase: Awaited<ReturnType<typeof assertStaff>>["supabase"], ids: string[]) {
+  if (!ids.length) return 0;
+  // chỉ xoá xe đã nằm trong thùng rác
+  const { data: trashed } = await supabase.from("vehicles").select("id").in("id", ids).not("deleted_at", "is", null);
+  const okIds = (trashed ?? []).map((t) => t.id);
+  if (!okIds.length) return 0;
+  // dọn file ảnh đã tải lên Storage của các xe này
+  const { data: imgs } = await supabase.from("vehicle_images").select("storage_path").in("vehicle_id", okIds).not("storage_path", "is", null);
+  const paths = (imgs ?? []).map((i) => i.storage_path as string).filter(Boolean);
+  if (paths.length) await supabase.storage.from("vehicle-images").remove(paths);
+  // phiên bản và ảnh bị xoá theo (ON DELETE CASCADE); lead/ưu đãi/bài viết chỉ bị gỡ liên kết xe
+  const { error } = await supabase.from("vehicles").delete().in("id", okIds);
+  return error ? -1 : okIds.length;
+}
+
+export async function purgeVehicles(formData: FormData) {
+  const { supabase, staff } = await assertStaff();
+  const back = "/admin/vehicles?view=trash";
+  if (staff.role !== "admin") redirect(`${back}&error=${encodeURIComponent("Chỉ quản trị viên được xoá vĩnh viễn")}`);
+  let ids = formData.getAll("id").map(String);
+  if (formData.get("all") === "1") {
+    const { data } = await supabase.from("vehicles").select("id").not("deleted_at", "is", null);
+    ids = (data ?? []).map((d) => d.id);
+  }
+  const n = await purge(supabase, ids);
+  revalidatePublic();
+  redirect(`${back}&${n < 0 ? "error=" + encodeURIComponent("Không xoá được") : "ok=" + encodeURIComponent(`Đã xoá vĩnh viễn ${n} xe`)}`);
 }

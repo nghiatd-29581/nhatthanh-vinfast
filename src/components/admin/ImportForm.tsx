@@ -28,7 +28,7 @@ export function ImportForm({ example }: { example: string }) {
         <textarea name="json" value={json} onChange={(e) => setJson(e.target.value)} rows={18} spellCheck={false}
           className="field mt-4 font-mono text-xs" placeholder={example} />
         <p className="mt-2 text-xs text-steel">
-          Chấp nhận nguyên file “Xuất JSON”, một mảng xe, hoặc một/vài object copy từ file. Giá trị <code>null</code> được hiểu là để trống.
+          Chấp nhận nguyên file “Xuất JSON”, một mảng xe, hoặc một/vài object copy từ file. Với xe đã có, giá trị <code>null</code> nghĩa là <b>giữ nguyên</b> dữ liệu hiện tại (ảnh, giá, thông số…); muốn xoá trắng một ô chữ thì ghi <code>""</code>.
           Xe khớp theo <b>slug</b> (không có slug thì tạo từ tên). Chỉ những trường có trong file mới được cập nhật.
         </p>
       </section>
@@ -77,7 +77,7 @@ export function ImportForm({ example }: { example: string }) {
                   {report.rows.map((r) => (
                     <tr key={r.slug} className="border-t border-silver">
                       <td className="p-2 font-semibold">{r.name}</td><td className="p-2 text-steel">{r.slug}</td>
-                      <td className="p-2">{r.action === "create" ? "Tạo mới" : "Cập nhật"}</td><td className="p-2 tabular-nums">{r.variants}</td><td className="p-2 tabular-nums">{r.images}</td>
+                      <td className="p-2">{r.action === "create" ? "Tạo mới" : r.action === "restore" ? "Khôi phục từ thùng rác" : "Cập nhật"}</td><td className="p-2 tabular-nums">{r.variants}</td><td className="p-2 tabular-nums">{r.images}</td>
                     </tr>
                   ))}
                 </tbody>

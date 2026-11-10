@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { formatVnd } from "@/lib/format";
+import { swatchStyle } from "@/lib/colors";
 import { SALES_STATUS_LABELS } from "@/lib/constants";
 import type { SpecGroups, Variant } from "@/lib/types";
 
@@ -66,7 +67,7 @@ export function VariantPanel({ variants, vehicleSpecs }: { variants: Variant[]; 
             ) : null}
             {v.colors?.length ? (
               <div className="mt-8 flex flex-wrap gap-2">
-                {v.colors.map((c) => <span key={c.name} title={c.name} className="size-7 rounded-full border border-black/10" style={{ background: c.hex }} />)}
+                {v.colors.map((c) => <span key={c.name} title={c.name} className="size-7 rounded-full border border-black/10" style={swatchStyle(c)} />)}
               </div>
             ) : null}
           </div>
